@@ -299,6 +299,49 @@ fun GlassCircleButton(
 }
 
 @Composable
+fun ContactAvatar(
+    name: String,
+    photoUrl: String?,
+    avatarColorHex: String,
+    size: Dp,
+    modifier: Modifier = Modifier,
+    borderWidth: Dp = 1.dp
+) {
+    val color = try {
+        Color(android.graphics.Color.parseColor(avatarColorHex))
+    } catch (e: Exception) {
+        Color(0xFF7A8AFF)
+    }
+
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(color.copy(alpha = 0.15f))
+            .border(borderWidth, color.copy(alpha = 0.4f), CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        if (!photoUrl.isNullOrEmpty()) {
+            coil.compose.AsyncImage(
+                model = photoUrl,
+                contentDescription = name,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape),
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+            )
+        } else {
+            Text(
+                text = name.take(2).uppercase(),
+                color = color,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                fontSize = (size.value * 0.35f).sp
+            )
+        }
+    }
+}
+
+@Composable
 fun ContactDetailDialog(
     name: String,
     phoneNumber: String,
@@ -309,6 +352,7 @@ fun ContactDetailDialog(
     onDismiss: () -> Unit,
     onCall: () -> Unit,
     onToggleFavorite: (() -> Unit)? = null,
+    photoUrl: String? = null,
     modifier: Modifier = Modifier
 ) {
     androidx.compose.ui.window.Dialog(
@@ -367,22 +411,14 @@ fun ContactDetailDialog(
                 
                 Spacer(modifier = Modifier.height(12.dp))
                 
-                // Huge Glass Profile Circle with initials
-                Box(
-                    modifier = Modifier
-                        .size(96.dp)
-                        .clip(CircleShape)
-                        .background(color.copy(alpha = 0.15f))
-                        .border(2.dp, color.copy(alpha = 0.5f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = name.take(2).uppercase(),
-                        color = color,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                        fontSize = 32.sp
-                    )
-                }
+                // Huge Glass Profile Circle with Photo or initials
+                ContactAvatar(
+                    name = name,
+                    photoUrl = photoUrl,
+                    avatarColorHex = avatarColorHex,
+                    size = 96.dp,
+                    borderWidth = 2.dp
+                )
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 

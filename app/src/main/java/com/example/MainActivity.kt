@@ -51,6 +51,12 @@ import com.example.ui.settings.DialerSettings
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.AppCallState
 import com.example.ui.viewmodel.DialerViewModel
+import coil.compose.AsyncImage
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import android.content.ContentValues
+import android.provider.MediaStore
+import android.os.Environment
 
 class MainActivity : ComponentActivity() {
 
@@ -72,6 +78,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Request role launcher for default app (Android 10/Q+)
+    private val roleRequestLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { _ ->
+        checkAppPermissionsAndStatus()
+    }
+
     override fun onResume() {
         super.onResume()
         isResumed = true
@@ -85,8 +98,13 @@ class MainActivity : ComponentActivity() {
 
     private fun checkAppPermissionsAndStatus() {
         if (!::viewModel.isInitialized) return
-        val telecomManager = getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
-        val isDefault = telecomManager?.defaultDialerPackage == packageName
+        val isDefault = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val roleManager = getSystemService(Context.ROLE_SERVICE) as? android.app.role.RoleManager
+            roleManager?.isRoleHeld(android.app.role.RoleManager.ROLE_DIALER) ?: false
+        } else {
+            val telecomManager = getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+            telecomManager?.defaultDialerPackage == packageName
+        }
         viewModel.isDefaultDialer.value = isDefault
 
         val contactsGranted = ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
@@ -250,12 +268,35 @@ class MainActivity : ComponentActivity() {
 
     private fun requestDefaultDialerLauncher() {
         try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val roleManager = getSystemService(Context.ROLE_SERVICE) as? android.app.role.RoleManager
+                if (roleManager != null && roleManager.isRoleAvailable(android.app.role.RoleManager.ROLE_DIALER)) {
+                    if (!roleManager.isRoleHeld(android.app.role.RoleManager.ROLE_DIALER)) {
+                        val intent = roleManager.createRequestRoleIntent(android.app.role.RoleManager.ROLE_DIALER)
+                        roleRequestLauncher.launch(intent)
+                    } else {
+                        Toast.makeText(this, "Already set as default dialer", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    launchLegacyDefaultDialer()
+                }
+            } else {
+                launchLegacyDefaultDialer()
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "RoleManager request failed, fallback to legacy", e)
+            launchLegacyDefaultDialer()
+        }
+    }
+
+    private fun launchLegacyDefaultDialer() {
+        try {
             val intent = Intent(TelecomManager.ACTION_CHANGE_DEFAULT_DIALER).apply {
                 putExtra(TelecomManager.EXTRA_CHANGE_DEFAULT_DIALER_PACKAGE_NAME, packageName)
             }
             startActivity(intent)
         } catch (e: Exception) {
-            Toast.makeText(this, "Default action not supported on this workspace", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Default action not supported on this device/workspace", Toast.LENGTH_SHORT).show()
         }
     }
 }
@@ -271,6 +312,7 @@ fun DialerMainScaffold(
     val isDefaultDialer by viewModel.isDefaultDialer.collectAsState()
     val arePermissionsGranted by viewModel.arePermissionsGranted.collectAsState()
     val isSettingsOpen by viewModel.isSettingsOpen.collectAsState()
+    val isFirstLaunch by viewModel.isFirstLaunch.collectAsState()
 
     Box(modifier = Modifier.fillMaxSize()) {
         // 1. Current Active Screen
@@ -407,8 +449,19 @@ fun DialerMainScaffold(
             }
         }
 
-        // Automatic Overlay Dialog for Permissions (if missing or revoked!)
-        if (!arePermissionsGranted) {
+        // Automatic Overlay Dialog for Onboarding & Download APK / Permissions
+        if (isFirstLaunch) {
+            val context = LocalContext.current
+            OnboardingDownloadDialog(
+                settings = settings,
+                onDownloadApk = {
+                    extractAndSaveApk(context)
+                },
+                onDismiss = {
+                    viewModel.completeFirstLaunch()
+                }
+            )
+        } else if (!arePermissionsGranted) {
             AlertDialog(
                 onDismissRequest = {}, // Force consent/action
                 title = { Text("Permissions Required", color = Color.White, fontWeight = FontWeight.Bold) },
@@ -483,3 +536,175 @@ fun DialerMainScaffold(
         }
     }
 }
+
+@Composable
+fun OnboardingDownloadDialog(
+    settings: DialerSettings,
+    onDownloadApk: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = {}, // Force action
+        title = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Smartphone,
+                    contentDescription = "Extract APK",
+                    tint = settings.getAccentColor(),
+                    modifier = Modifier.size(48.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Extract Offline Installer",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = "No need to download from a slow web link! This app can automatically extract its fully functioning offline installer APK file directly to your phone's 'Downloads' storage so you can easily install or share it on any device.",
+                    color = Color.LightGray,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                // Async QR Code
+                Box(
+                    modifier = Modifier
+                        .size(160.dp)
+                        .background(Color.White, RoundedCornerShape(16.dp))
+                        .padding(8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AsyncImage(
+                        model = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https%3A%2F%2Fais-pre-h2edxchs4vtrji2w2udxrc-757791243390.asia-southeast1.run.app%2F.build-outputs%2Fapp-debug.apk",
+                        contentDescription = "Scan QR Code to download APK",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Scan QR is also available, or click Extract below for offline install",
+                    color = Color.Gray,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        },
+        confirmButton = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Button(
+                    onClick = onDownloadApk,
+                    colors = ButtonDefaults.buttonColors(containerColor = settings.getAccentColor()),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Phone, contentDescription = null, tint = Color.White)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Extract & Save APK Offline", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth().height(44.dp)
+                ) {
+                    Text("Continue to App", color = Color.LightGray, fontWeight = FontWeight.Medium)
+                }
+            }
+        },
+        containerColor = Color(0xFF0F172A).copy(alpha = 0.95f),
+        shape = RoundedCornerShape(28.dp),
+        modifier = Modifier.border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(28.dp))
+    )
+}
+
+fun extractAndSaveApk(context: Context) {
+    try {
+        val appInfo = context.applicationInfo
+        val srcFile = java.io.File(appInfo.sourceDir)
+        if (!srcFile.exists()) {
+            Toast.makeText(context, "Error: Source APK could not be found", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val filename = "Glass_Phone_Dialer.apk"
+
+        // 1. Write the base.apk directly to the standard public Downloads folder
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val contentResolver = context.contentResolver
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                put(MediaStore.MediaColumns.MIME_TYPE, "application/vnd.android.package-archive")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            }
+            
+            val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+            if (uri != null) {
+                contentResolver.openOutputStream(uri)?.use { outputStream ->
+                    srcFile.inputStream().use { inputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
+                }
+            }
+        } else {
+            // Legacy/Fallback for below Android Q: Direct file copy to standard Downloads folder
+            val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            if (!downloadDir.exists()) {
+                downloadDir.mkdirs()
+            }
+            val destFile = java.io.File(downloadDir, filename)
+            srcFile.inputStream().use { inputStream ->
+                destFile.outputStream().use { outputStream ->
+                    inputStream.copyTo(outputStream)
+                }
+            }
+        }
+
+        // Show Toast notifying success in extraction!
+        Toast.makeText(
+            context, 
+            "Successfully extracted & saved the installer file to phone's standard 'Downloads' folder!", 
+            Toast.LENGTH_LONG
+        ).show()
+
+        // 2. Also trigger standard Share Sheet for convenient immediate install / sending!
+        try {
+            val apkUri = androidx.core.content.FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                srcFile
+            )
+            
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/vnd.android.package-archive"
+                putExtra(Intent.EXTRA_STREAM, apkUri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(shareIntent, "Save or Install Extracted APK"))
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to show share sheet fallback", e)
+        }
+
+    } catch (e: Exception) {
+        Log.e("MainActivity", "Error extracting and saving APK", e)
+        Toast.makeText(context, "Error copying APK: ${e.message}", Toast.LENGTH_LONG).show()
+    }
+}
+

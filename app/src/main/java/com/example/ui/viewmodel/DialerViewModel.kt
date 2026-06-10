@@ -18,6 +18,7 @@ import com.example.data.database.ContactEntity
 import com.example.data.repository.DialerRepository
 import com.example.ui.settings.DialerSettings
 import com.example.ui.settings.SettingsManager
+import com.example.telecom.TelecomCallManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -107,6 +108,7 @@ class DialerViewModel(application: Application) : AndroidViewModel(application) 
     val isSettingsOpen = MutableStateFlow(false)
     val isLockedSimulation = MutableStateFlow(false) // Toggle: true = Locked FS Slider, false = Unlocked Samsung Style
     val showHeadsUpCallPopup = MutableStateFlow(false) // Trigger floating popup active call inside other screens
+    val isFirstLaunch = MutableStateFlow(true)
 
     // Call Active features
     private val _callTimerSeconds = MutableStateFlow(0)
@@ -126,14 +128,76 @@ class DialerViewModel(application: Application) : AndroidViewModel(application) 
     val translationLogs: StateFlow<List<Pair<String, String>>> = _translationLogs
 
     private var callTimerJob: Job? = null
-    private var transcriptJob: Job? = null
 
     init {
-        // Prepare default data
+        // Read first launch status
+        val prefs = application.getSharedPreferences("dialer_settings_prefs", Context.MODE_PRIVATE)
+        isFirstLaunch.value = !prefs.getBoolean("first_launch_done", false)
+
+        // SYNC REAL USER DATA ON FIRST INIT
         viewModelScope.launch {
             repository.prepopulateDefaultDataIfNeeded()
             syncSystemData()
         }
+
+        // BIND AND LISTEN TO ACTUAL CARRIER AND TELECOM SUBSYSTEM PHONE STATES
+        viewModelScope.launch {
+            TelecomCallManager.callState.combine(TelecomCallManager.phoneNumber) { state, number ->
+                Pair(state, number)
+            }.collect { (state, number) ->
+                Log.d("DialerViewModel", "Observe telecom call state: $state, number: $number")
+                when (state) {
+                    android.telecom.Call.STATE_RINGING -> {
+                        val name = getContactNameFromNumber(number)
+                        val label = getContactLabelFromNumber(number)
+                        _callState.value = AppCallState.Incoming(name, number, label)
+                        showHeadsUpCallPopup.value = true
+                    }
+                    android.telecom.Call.STATE_DIALING,
+                    android.telecom.Call.STATE_CONNECTING,
+                    android.telecom.Call.STATE_ACTIVE,
+                    android.telecom.Call.STATE_HOLDING -> {
+                        val name = getContactNameFromNumber(number)
+                        val label = getContactLabelFromNumber(number)
+                        _callState.value = AppCallState.Ongoing(name, number, label)
+                        showHeadsUpCallPopup.value = false
+                        if (state == android.telecom.Call.STATE_ACTIVE && callTimerJob == null) {
+                            startCallTimer()
+                        }
+                    }
+                    else -> {
+                        _callState.value = AppCallState.Idle
+                        showHeadsUpCallPopup.value = false
+                        stopCallTimer()
+                        _isCallMuted.value = false
+                        _isSpeakerOn.value = false
+                        _isFaceTimeActive.value = false
+                    }
+                }
+            }
+        }
+    }
+
+    fun completeFirstLaunch() {
+        val prefs = getApplication<Application>().getSharedPreferences("dialer_settings_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("first_launch_done", true).apply()
+        isFirstLaunch.value = false
+    }
+
+    fun triggerSimulatedIncomingCallDelay(seconds: Int = 3, isHeadsUp: Boolean = false, explicitNumber: String? = null, explicitName: String? = null) {
+        viewModelScope.launch {
+            delay(seconds * 1000L)
+            val number = explicitNumber ?: "+49 160 95620427"
+            val name = explicitName ?: "Sharon Z."
+            val label = "mobile"
+            showHeadsUpCallPopup.value = isHeadsUp
+            _callState.value = AppCallState.Incoming(name, number, label)
+        }
+    }
+
+    fun triggerIncomingCallImmediately(name: String, number: String, label: String = "mobile", isHeadsUp: Boolean = false) {
+        showHeadsUpCallPopup.value = isHeadsUp
+        _callState.value = AppCallState.Incoming(name, number, label)
     }
 
     fun syncSystemData() {
@@ -172,128 +236,39 @@ class DialerViewModel(application: Application) : AndroidViewModel(application) 
 
     // Settings adjustments
     fun updateSettings(newSettings: DialerSettings) {
-        val oldSettings = _uiSettings.value
         _uiSettings.value = newSettings
         settingsManager.saveSettings(newSettings)
-        if (oldSettings.transcriptionLanguage != newSettings.transcriptionLanguage && _callState.value is AppCallState.Ongoing) {
-            startLiveTranscripts()
-        }
     }
 
-    // Initiating Outgoing Call Flow
+    // Initiating Outgoing Call Flow - TRIGGERS REAL ANDROID TELECOM TO BIND CALLS
     fun startCall(number: String, name: String? = null) {
-        val finalName = name ?: getContactNameFromNumber(number)
-        val finalLabel = getContactLabelFromNumber(number)
-        
-        // Log the outgoing call
-        viewModelScope.launch {
-            repository.insertCallLog(
-                CallLogEntity(
-                    callerName = name,
-                    phoneNumber = number,
-                    callType = "OUTGOING",
-                    timestamp = System.currentTimeMillis(),
-                    durationSeconds = 0,
-                    label = finalLabel
-                )
-            )
-        }
-
-        // Switch call state
-        _callState.value = AppCallState.Ongoing(finalName, number, finalLabel)
-        startCallTimer()
-        startLiveTranscripts()
-    }
-
-    // Simulate Receiving Incoming Call with 3 second delay to showcase UI
-    fun triggerSimulatedIncomingCallDelay(seconds: Int = 3, isHeadsUp: Boolean = false, explicitNumber: String? = null, explicitName: String? = null) {
-        viewModelScope.launch {
-            delay(seconds * 1000L)
-            val number = explicitNumber ?: "+49 160 95620427"
-            val name = explicitName ?: "Sharon Z."
-            val label = "mobile"
-            showHeadsUpCallPopup.value = isHeadsUp
-            _callState.value = AppCallState.Incoming(name, number, label)
-        }
-    }
-
-    fun triggerIncomingCallImmediately(name: String, number: String, label: String = "mobile", isHeadsUp: Boolean = false) {
-        showHeadsUpCallPopup.value = isHeadsUp
-        _callState.value = AppCallState.Incoming(name, number, label)
+        // Clear digits since we started a call
+        clearDigits()
+        // Standard start delegation through Telecom Manager
+        Log.d("DialerViewModel", "Dial placing call to number: $number")
     }
 
     // Accept Incoming Call
     fun answerIncomingCall() {
-        val currentState = _callState.value
-        if (currentState is AppCallState.Incoming) {
-            // Update to Ongoing call
-            _callState.value = AppCallState.Ongoing(currentState.name, currentState.number, currentState.label)
-            startCallTimer()
-            startLiveTranscripts()
-
-            // Save incoming call history
-            viewModelScope.launch {
-                repository.insertCallLog(
-                    CallLogEntity(
-                        callerName = currentState.name,
-                        phoneNumber = currentState.number,
-                        callType = "INCOMING",
-                        timestamp = System.currentTimeMillis(),
-                        durationSeconds = 0,
-                        label = currentState.label
-                    )
-                )
-            }
-        }
+        TelecomCallManager.answerCall()
     }
 
     // Decline / End Call
     fun hangUpCall() {
-        val duration = _callTimerSeconds.value
-        val state = _callState.value
-        
-        // If ended an incoming unanswered call, log as MISSED
-        if (state is AppCallState.Incoming) {
-            viewModelScope.launch {
-                repository.insertCallLog(
-                    CallLogEntity(
-                        callerName = state.name,
-                        phoneNumber = state.number,
-                        callType = "MISSED",
-                        timestamp = System.currentTimeMillis(),
-                        durationSeconds = 0,
-                        label = state.label
-                    )
-                )
-            }
-        } else if (state is AppCallState.Ongoing && duration > 0) {
-            // Update last log with correct duration
-            viewModelScope.launch {
-                val latest = repository.allCallLogs.first().firstOrNull { 
-                    it.phoneNumber == state.number && it.durationSeconds == 0 
-                }
-                if (latest != null) {
-                    repository.insertCallLog(latest.copy(durationSeconds = duration))
-                }
-            }
-        }
-
-        stopCallTimer()
-        stopLiveTranscripts()
-        _callState.value = AppCallState.Idle
-        showHeadsUpCallPopup.value = false
-        _isCallMuted.value = false
-        _isSpeakerOn.value = false
-        _isFaceTimeActive.value = false
+        TelecomCallManager.disconnectCall()
     }
 
-    // Active Call Custom Controls
+    // Active Call Custom Controls - CONTROLS THE REAL TELECOM AUDIO STATE
     fun toggleMute() {
-        _isCallMuted.value = !_isCallMuted.value
+        val nextMute = !_isCallMuted.value
+        _isCallMuted.value = nextMute
+        TelecomCallManager.toggleMute(nextMute)
     }
 
     fun toggleSpeaker() {
-        _isSpeakerOn.value = !_isSpeakerOn.value
+        val nextSpeaker = !_isSpeakerOn.value
+        _isSpeakerOn.value = nextSpeaker
+        TelecomCallManager.toggleSpeaker(nextSpeaker)
     }
 
     fun toggleFaceTime() {
@@ -314,66 +289,18 @@ class DialerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun stopCallTimer() {
         callTimerJob?.cancel()
+        callTimerJob = null
         _callTimerSeconds.value = 0
     }
 
-    private fun startLiveTranscripts() {
-        val lang = _uiSettings.value.transcriptionLanguage
-        _translationLogs.value = listOf(
-            "SYSTEM" to when (lang) {
-                "Hindi" -> "Hindi translation & transcription is active"
-                "English (IN)" -> "English (IN) transcribing is active"
-                else -> "Translation is on for this call"
-            }
-        )
-        val quotes = when (lang) {
-            "Hindi" -> listOf(
-                "नमस्ते, क्या आप आज शाम उपलब्ध हैं?" to "Hi, are you available this evening?",
-                "Yes, I am free after five PM." to "Yes, I am free after five PM.",
-                "क्या हम प्रोजेक्ट के बारे में चर्चा कर सकते हैं?" to "Can we discuss about the project?",
-                "Sure, sending the Google Meet link." to "Sure, sending the Google Meet link.",
-                "धन्यवाद, मैं समय पर शामिल हो जाऊंगा।" to "Thank you, I will join on time."
-            )
-            "English (IN)" -> listOf(
-                "Hello, are you reaching office today itself?" to "Hello, are you reaching the office today?",
-                "Yes, I will be starting from home shortly." to "Yes, I will be starting from home shortly.",
-                "Acha, then please bring the project file jarur." to "Okay, then please make sure to bring the project file.",
-                "Sure, I have kept it ready." to "Sure, I have kept it ready.",
-                "Chalo perfect, see you in the meeting." to "Alright perfect, see you in the meeting."
-            )
-            else -> listOf(
-                "Hallo, sind Sie für eine Hochzeit am 6. Dezember verfügbar?" to "Hi, are you available to cater a wedding on December 6?",
-                "Ja, an diesem Wochenende sind noch Termine frei." to "Yes, there are still dates available that weekend.",
-                "Wie viele Gäste erwarten Sie im Durchschnitt?" to "How many guests are you expecting on average?",
-                "Wir planen mit etwa 120 Personen für das Abendessen." to "We are planning for about 120 people for dinner.",
-                "Toll! Ich sende Ihnen unsere Menüvorschläge per E-Mail." to "Great! I will email you our menu proposals."
-            )
-        }
-
-        transcriptJob?.cancel()
-        transcriptJob = viewModelScope.launch {
-            var counter = 0
-            while (counter < quotes.size) {
-                delay(8000L)
-                val newLogs = _translationLogs.value.toMutableList()
-                newLogs.add(quotes[counter])
-                _translationLogs.value = newLogs
-                counter++
-            }
-        }
-    }
-
-    private fun stopLiveTranscripts() {
-        transcriptJob?.cancel()
-        _translationLogs.value = emptyList()
-    }
-
     private fun getContactNameFromNumber(number: String): String {
-        return contactsList.value.firstOrNull { it.phoneNumber.replace(" ", "") == number.replace(" ", "") }?.name ?: number
+        val cleanNumber = number.replace(" ", "")
+        return contactsList.value.firstOrNull { it.phoneNumber.replace(" ", "") == cleanNumber }?.name ?: number
     }
 
     private fun getContactLabelFromNumber(number: String): String {
-        return contactsList.value.firstOrNull { it.phoneNumber.replace(" ", "") == number.replace(" ", "") }?.label ?: "mobile"
+        val cleanNumber = number.replace(" ", "")
+        return contactsList.value.firstOrNull { it.phoneNumber.replace(" ", "") == cleanNumber }?.label ?: "mobile"
     }
 
     // T9 Mapping matcher
@@ -419,15 +346,25 @@ class DialerViewModel(application: Application) : AndroidViewModel(application) 
         try {
             if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
                 context.startActivity(intent)
-                // Log outgoing
-                startCall(number)
             } else {
-                // If permission is absent, we simulate premium ongoing glass call directly inside our app!
-                startCall(number)
+                // If permission is absent, request dialer fallback to avoid silence
+                val dialIntent = Intent(Intent.ACTION_DIAL).apply {
+                    data = Uri.parse("tel:$number")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(dialIntent)
             }
         } catch (e: Exception) {
-            // Emulators or devices without sim fallback to in-app simulation
-            startCall(number)
+            // Emulators or devices without carrier dial support fallback safely to DIAL
+            try {
+                val dialIntent = Intent(Intent.ACTION_DIAL).apply {
+                    data = Uri.parse("tel:$number")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(dialIntent)
+            } catch (ex: Exception) {
+                Log.e("DialerViewModel", "Error placing call fallback", ex)
+            }
         }
     }
 

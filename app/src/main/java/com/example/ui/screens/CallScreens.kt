@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.util.Log
 import java.util.Locale
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -353,13 +354,44 @@ fun OngoingCallScreen(
     val isSpeakerOn by viewModel.isSpeakerOn.collectAsState()
     val isFaceTimeActive by viewModel.isFaceTimeActive.collectAsState()
     
-    // Dynamic transcripts
-    val logs by viewModel.translationLogs.collectAsState()
+    var showDtmfKeypad by remember { mutableStateOf(false) }
 
     val formattedDuration = remember(durationSeconds) {
         val mins = durationSeconds / 60
         val secs = durationSeconds % 60
         String.format("%02d:%02d", mins, secs)
+    }
+
+    val toneGenerator = remember {
+        try {
+            android.media.ToneGenerator(android.media.AudioManager.STREAM_VOICE_CALL, 80)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    fun playDtmfTone(char: Char) {
+        val dtmfType = when (char) {
+            '1' -> android.media.ToneGenerator.TONE_DTMF_1
+            '2' -> android.media.ToneGenerator.TONE_DTMF_2
+            '3' -> android.media.ToneGenerator.TONE_DTMF_3
+            '4' -> android.media.ToneGenerator.TONE_DTMF_4
+            '5' -> android.media.ToneGenerator.TONE_DTMF_5
+            '6' -> android.media.ToneGenerator.TONE_DTMF_6
+            '7' -> android.media.ToneGenerator.TONE_DTMF_7
+            '8' -> android.media.ToneGenerator.TONE_DTMF_8
+            '9' -> android.media.ToneGenerator.TONE_DTMF_9
+            '0' -> android.media.ToneGenerator.TONE_DTMF_0
+            '*' -> android.media.ToneGenerator.TONE_DTMF_S
+            '#' -> android.media.ToneGenerator.TONE_DTMF_P
+            else -> return
+        }
+        try {
+            toneGenerator?.startTone(dtmfType, 120)
+            com.example.telecom.TelecomCallManager.playDtmf(char)
+        } catch (e: Exception) {
+            Log.e("OngoingCallScreen", "Error playing DTMF", e)
+        }
     }
 
     Column(
@@ -404,110 +436,87 @@ fun OngoingCallScreen(
             )
         }
 
-        // 2. Transcription bubbles matching the first screenshot ("Translation is on for this call")
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1.0f)
-                .padding(vertical = 12.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.Bottom,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            logs.forEach { (lang, text) ->
-                if (lang == "SYSTEM") {
-                    // System blue notification card
-                    Box(
-                        modifier = Modifier
-                            .padding(bottom = 12.dp)
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(Color(0xFF0B2533))
-                            .border(1.dp, Color(0xFF0D364D), RoundedCornerShape(18.dp))
-                            .padding(horizontal = 20.dp, vertical = 11.dp)
-                    ) {
-                        Text(
-                            text = text,
-                            color = Color(0xFF5AB6E5),
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                } else {
-                    // Chat speech bubble styling
-                    val isSelf = lang.contains("cater a wedding") || lang.contains("email") || lang.contains("available") || lang.contains("expecting") ||
-                            lang.contains("free") || lang.contains("starting") || lang.contains("ready") || lang.contains("Meet link") ||
-                            lang == text
-                    Box(
-                        modifier = Modifier
-                            .align(if (isSelf) Alignment.End else Alignment.Start)
-                            .padding(bottom = 12.dp)
-                            .widthIn(max = 280.dp)
-                            .clip(
-                                RoundedCornerShape(
-                                    topStart = 18.dp,
-                                    topEnd = 18.dp,
-                                    bottomStart = if (isSelf) 18.dp else 4.dp,
-                                    bottomEnd = if (isSelf) 4.dp else 18.dp
-                                )
-                            )
-                            .background(
-                                if (isSelf) Color(0xFF1B4E54) else Color(0xFF14303B)
-                            )
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
-                    ) {
-                        Column {
-                            if (!isSelf) {
-                                Text(
-                                    text = lang, // Original text
-                                    color = Color.LightGray,
-                                    fontSize = 11.sp,
-                                    modifier = Modifier.padding(bottom = 2.dp)
-                                )
+        // 2. Central Area: Toggleable DTMF dialer keypad or security notice
+        if (showDtmfKeypad) {
+            // Centered fully functional DTMF dialpad layout
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1.0f)
+                    .padding(vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#")
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    for (r in 0..3) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(24.dp)
+                        ) {
+                            for (c in 0..2) {
+                                val key = keys[r * 3 + c]
+                                Box(
+                                    modifier = Modifier
+                                        .size(60.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White.copy(alpha = 0.12f))
+                                        .clickable { playDtmfTone(key[0]) },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = key,
+                                        color = Color.White,
+                                        fontSize = 22.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
                             }
-                            Text(
-                                text = text, // Translated text English
-                                color = Color.White,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Normal
-                            )
                         }
                     }
                 }
             }
-
-            // Small dynamic transcription selector capsule
-            Box(
+        } else {
+            // Elegant centered logo and status presentation
+            Column(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color.White.copy(alpha = 0.08f))
-                    .clickable {
-                        val nextLang = when (settings.transcriptionLanguage) {
-                            "Hindi" -> "English (IN)"
-                            "English (IN)" -> "German"
-                            else -> "Hindi"
-                        }
-                        viewModel.updateSettings(settings.copy(transcriptionLanguage = nextLang))
-                    }
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                    .fillMaxWidth()
+                    .weight(1.0f)
+                    .padding(vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(110.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.04f))
+                        .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
                     Icon(
-                        imageVector = Icons.Default.Translate,
+                        imageVector = Icons.Default.Call,
                         contentDescription = null,
-                        tint = Color.LightGray,
-                        modifier = Modifier.size(14.dp)
+                        tint = Color.White.copy(alpha = 0.6f),
+                        modifier = Modifier.size(44.dp)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Color(0xFF0F1E26))
+                        .border(1.dp, Color(0xFF142B36), RoundedCornerShape(18.dp))
+                        .padding(horizontal = 20.dp, vertical = 11.dp)
+                ) {
                     Text(
-                        text = when (settings.transcriptionLanguage) {
-                            "Hindi" -> "Translating Hindi ↕"
-                            "English (IN)" -> "English (IN) Active ↕"
-                            else -> "Translating German ↕"
-                        },
-                        color = Color.LightGray,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
+                        text = "Carrier voice line active • Secure dynamic connection",
+                        color = Color(0xFF63B8F2),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
                     )
                 }
             }
@@ -527,7 +536,7 @@ fun OngoingCallScreen(
             val keysRow2 = listOf(
                 Triple("More", Icons.Default.MoreHoriz, false),
                 Triple("End", Icons.Default.CallEnd, false), // Rotated call under progress
-                Triple("Keypad", Icons.Default.Dialpad, false)
+                Triple("Keypad", Icons.Default.Dialpad, showDtmfKeypad)
             )
 
             // Dynamic grid construction
@@ -573,7 +582,7 @@ fun OngoingCallScreen(
                                 if (isEnd) {
                                     viewModel.hangUpCall()
                                 } else if (label == "Keypad") {
-                                    viewModel.setTab("Keypad")
+                                    showDtmfKeypad = !showDtmfKeypad
                                 }
                             }
                         )

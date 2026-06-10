@@ -229,7 +229,8 @@ fun ContactsScreen(
             settings = settings,
             onDismiss = { activeDetailContact = null },
             onCall = { onNavigateToCall(contact.phoneNumber, contact.name) },
-            onToggleFavorite = { viewModel.toggleContactFavorite(contact) }
+            onToggleFavorite = { viewModel.toggleContactFavorite(contact) },
+            photoUrl = contact.photoUrl
         )
     }
 }
@@ -240,8 +241,6 @@ fun ContactRow(
     settings: DialerSettings,
     onClick: () -> Unit
 ) {
-    val color = Color(android.graphics.Color.parseColor(contact.avatarColorHex))
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -249,22 +248,13 @@ fun ContactRow(
             .padding(vertical = 8.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // High density visual initials avatar
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .clip(CircleShape)
-                .background(color.copy(alpha = 0.15f))
-                .border(1.dp, color.copy(alpha = 0.3f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = contact.name.take(2).uppercase(),
-                color = color,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp
-            )
-        }
+        // High density visual initials or photo photoUrl avatar
+        com.example.ui.components.ContactAvatar(
+            name = contact.name,
+            photoUrl = contact.photoUrl,
+            avatarColorHex = contact.avatarColorHex,
+            size = 44.dp
+        )
 
         Spacer(modifier = Modifier.width(14.dp))
 

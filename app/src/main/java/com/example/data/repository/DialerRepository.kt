@@ -55,45 +55,7 @@ class DialerRepository(
      * Prepopulates beautiful default contacts/call logs matching the target designs if the database is empty.
      */
     suspend fun prepopulateDefaultDataIfNeeded() = withContext(Dispatchers.IO) {
-        val existingContacts = contactDao.getAllContacts().first()
-        if (existingContacts.isEmpty()) {
-            val defaultContacts = listOf(
-                ContactEntity(name = "Mahboud Z.", phoneNumber = "+49 176 1234567", label = "mobile", isFavorite = true, avatarColorHex = "#7A8AFF"),
-                ContactEntity(name = "Sharon Z.", phoneNumber = "0151 7654321", label = "home", isFavorite = true, avatarColorHex = "#FF7A8A"),
-                ContactEntity(name = "Eric Z.", phoneNumber = "0172 9876543", label = "mobile", isFavorite = true, avatarColorHex = "#8AFF7A"),
-                ContactEntity(name = "Ken Z.", phoneNumber = "+49 160 95620427", label = "work", isFavorite = false, avatarColorHex = "#FFE57A"),
-                ContactEntity(name = "Dan Z.", phoneNumber = "0160 1111111", label = "phone", isFavorite = false, avatarColorHex = "#7AFFD8"),
-                ContactEntity(name = "Bree Z.", phoneNumber = "0176 2222222", label = "mobile", isFavorite = false, avatarColorHex = "#D87AFF"),
-                ContactEntity(name = "Richard Z.", phoneNumber = "0152 3333333", label = "mobile", isFavorite = false, avatarColorHex = "#FF9A7A"),
-                ContactEntity(name = "Miriam Z.", phoneNumber = "0173 4444444", label = "mobile", isFavorite = false, avatarColorHex = "#7AD8FF"),
-                ContactEntity(name = "Brian Z.", phoneNumber = "0171 5555555", label = "work", isFavorite = false, avatarColorHex = "#B5FF7A"),
-                ContactEntity(name = "Tristan Engst", phoneNumber = "0150 1234567", label = "FaceTime Video", isFavorite = true, avatarColorHex = "#FF7AE3"),
-                ContactEntity(name = "Aaron P.", phoneNumber = "0159 9999999", label = "iPhone", isFavorite = false, avatarColorHex = "#7AFFB0"),
-                ContactEntity(name = "Walgreens (East Hill)", phoneNumber = "(555) 867-5309", label = "work", isFavorite = false, avatarColorHex = "#A0A0FF"),
-                ContactEntity(name = "Village Taqueria", phoneNumber = "(555) 123-4567", label = "phone", isFavorite = false, avatarColorHex = "#FFA0A0"),
-                ContactEntity(name = "Ian G.", phoneNumber = "0157 7777777", label = "mobile", isFavorite = false, avatarColorHex = "#A0FFA0"),
-                ContactEntity(name = "Moose", phoneNumber = "(405) 555-0145", label = "phone", isFavorite = true, avatarColorHex = "#E0FFA0"),
-                ContactEntity(name = "Thayer Appliance Center", phoneNumber = "(555) 987-6543", label = "work", isFavorite = false, avatarColorHex = "#FFA0E0")
-            )
-            contactDao.insertContacts(defaultContacts)
-        }
-
-        val existingLogs = callLogDao.getAllCallLogs().first()
-        if (existingLogs.isEmpty()) {
-            val weekAgo = System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000
-            val yesterday = System.currentTimeMillis() - 24 * 60 * 60 * 1000
-            val defaultLogs = listOf(
-                CallLogEntity(callerName = "Walgreens (East Hill)", phoneNumber = "(555) 867-5309", callType = "MISSED", timestamp = yesterday + 3 * 3600 * 1000, label = "work"),
-                CallLogEntity(callerName = "Village Taqueria", phoneNumber = "(555) 123-4567", callType = "OUTGOING", timestamp = yesterday - 2 * 3600 * 1000, label = "phone"),
-                CallLogEntity(callerName = "Ian G.", phoneNumber = "0157 7777777", callType = "INCOMING", timestamp = yesterday - 5 * 3600 * 1000, label = "mobile"),
-                CallLogEntity(callerName = "Moose", phoneNumber = "(405) 555-0145", callType = "INCOMING", timestamp = yesterday - 12 * 3600 * 1000, label = "phone"),
-                CallLogEntity(callerName = "Tristan Engst", phoneNumber = "0150 1234567", callType = "MISSED", timestamp = yesterday - 20 * 3600 * 1000, label = "FaceTime Video"),
-                CallLogEntity(callerName = "Aaron P.", phoneNumber = "0159 9999999", callType = "INCOMING", timestamp = yesterday - 30 * 3600 * 1000, label = "iPhone"),
-                CallLogEntity(callerName = "Moose", phoneNumber = "(405) 555-0145", callType = "OUTGOING", timestamp = yesterday - 40 * 3600 * 1000, label = "phone"),
-                CallLogEntity(callerName = "Thayer Appliance Center", phoneNumber = "(555) 987-6543", callType = "MISSED", timestamp = yesterday - 50 * 3600 * 1000, label = "work")
-            )
-            callLogDao.insertCallLogs(defaultLogs)
-        }
+        // REMOVED ALL MOCK DATA AND SIMULATIVE CONTACTS AS REQUESTED IN AUDIT REQUIREMENTS
     }
 
     /**
@@ -112,7 +74,8 @@ class DialerRepository(
             ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
             ContactsContract.CommonDataKinds.Phone.NUMBER,
             ContactsContract.CommonDataKinds.Phone.TYPE,
-            ContactsContract.CommonDataKinds.Phone.LABEL
+            ContactsContract.CommonDataKinds.Phone.LABEL,
+            ContactsContract.CommonDataKinds.Phone.PHOTO_URI
         )
 
         var cursor: Cursor? = null
@@ -123,6 +86,7 @@ class DialerRepository(
                 val numberIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
                 val typeIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.TYPE)
                 val labelIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.LABEL)
+                val photoUriIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_URI)
 
                 val newContacts = mutableListOf<ContactEntity>()
                 do {
@@ -130,6 +94,7 @@ class DialerRepository(
                     val number = cursor.getString(numberIndex) ?: ""
                     val type = cursor.getInt(typeIndex)
                     val label = ContactsContract.CommonDataKinds.Phone.getTypeLabel(context.resources, type, cursor.getString(labelIndex) ?: "mobile").toString()
+                    val photoUrl = if (photoUriIndex >= 0) cursor.getString(photoUriIndex) else null
 
                     if (number.isNotEmpty()) {
                         // Avoid duplicates inside DB
@@ -139,7 +104,8 @@ class DialerRepository(
                                 phoneNumber = number,
                                 label = label,
                                 isFavorite = false,
-                                avatarColorHex = getRandomHexColorForName(name)
+                                avatarColorHex = getRandomHexColorForName(name),
+                                photoUrl = photoUrl
                             )
                         )
                     }

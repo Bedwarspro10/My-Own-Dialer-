@@ -329,7 +329,8 @@ fun RecentsScreen(
             onCall = { onNavigateToCall(contact.phoneNumber, contact.name) },
             onToggleFavorite = if (contact.id != 0) {
                 { viewModel.toggleContactFavorite(contact) }
-            } else null
+            } else null,
+            photoUrl = contact.photoUrl
         )
     }
 }
