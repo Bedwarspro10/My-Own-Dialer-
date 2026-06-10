@@ -26,9 +26,3 @@ workflows:
     artifacts:
       - app/build/outputs/apk/debug/*.apk
       - app/build/reports/**
-
-    publishing:
-      email:
-        notify:
-          success: true
-          failure: true
