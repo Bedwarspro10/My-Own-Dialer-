@@ -1,0 +1,35 @@
+workflows:
+phone-dialer-debug:
+name: Phone Dialer Debug APK
+
+environment:
+  java: 17
+
+cache:
+  cache_paths:
+    - ~/.gradle/caches
+    - ~/.gradle/wrapper
+
+scripts:
+  - name: Make Gradle executable
+    script: |
+      chmod +x gradlew || true
+
+  - name: Show Gradle version
+    script: |
+      ./gradlew --version
+
+  - name: Build Debug APK
+    script: |
+      ./gradlew assembleDebug --stacktrace --info
+
+artifacts:
+  - app/build/outputs/apk/debug/*.apk
+  - app/build/reports/**
+  - app/build/outputs/logs/**
+
+publishing:
+  email:
+    notify:
+      success: true
+      failure: true
