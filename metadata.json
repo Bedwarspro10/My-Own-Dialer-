@@ -1,0 +1,6 @@
+{
+  "name": "Phone Dialer",
+  "description": "A highly polished, premium Liquid Glass dialer and call management application for Android with high-class frosted aesthetics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
