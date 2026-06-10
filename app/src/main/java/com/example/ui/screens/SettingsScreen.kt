@@ -27,10 +27,13 @@ import com.example.ui.components.GlassCard
 import com.example.ui.settings.DialerSettings
 import com.example.ui.viewmodel.DialerViewModel
 
+import androidx.compose.material.icons.filled.Close
+
 @Composable
 fun SettingsScreen(
     viewModel: DialerViewModel,
     settings: DialerSettings,
+    onClose: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -46,21 +49,38 @@ fun SettingsScreen(
         // Large Header Title
         Row(
             modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.Settings,
-                contentDescription = "Settings",
-                tint = settings.getAccentColor(),
-                modifier = Modifier.size(32.dp)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = "Settings",
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (settings.themeMode == "LIGHT") Color.Black else Color.White
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Settings",
+                    tint = settings.getAccentColor(),
+                    modifier = Modifier.size(32.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "Settings",
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (settings.themeMode == "LIGHT") Color.Black else Color.White
+                )
+            }
+
+            if (onClose != null) {
+                IconButton(
+                    onClick = onClose,
+                    modifier = Modifier.testTag("settings_close_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = if (settings.themeMode == "LIGHT") Color.Black else Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
         }
 
         Text(
@@ -238,7 +258,7 @@ fun SettingsScreen(
             color = if (settings.themeMode == "LIGHT") Color.Black else Color.White,
             modifier = Modifier.padding(bottom = 12.dp)
         )
-        val gradients = listOf("Teal Aurora", "Sky Pastel", "Indigo Velvet", "Cosmic AMOLED")
+        val gradients = listOf("Slate High-Density", "Sky Pastel", "Indigo Velvet", "Cosmic AMOLED")
         Column(
             modifier = Modifier
                 .fillMaxWidth()

@@ -2,8 +2,10 @@ package com.example.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -253,7 +255,12 @@ fun KeypadScreen(
                     modifier = Modifier
                         .size(72.dp)
                         .testTag("dialpad_call_button"),
-                    backgroundColor = Color(0xFF34C759) // Apple Green Call
+                    backgroundBrush = Brush.linearGradient(
+                        colors = listOf(
+                            Color(0xFF34D399), // Emerald 400
+                            Color(0xFF0D9488)  // Teal 600
+                        )
+                    )
                 ) {
                     Icon(
                         imageVector = Icons.Default.Call,
@@ -307,11 +314,16 @@ fun KeyButton(
     Box(
         modifier = Modifier
             .size(72.dp)
-            .clip(CircleShape)
-            .background(
-                if (isLight) Color.Black.copy(alpha = 0.05f)
-                else Color.White.copy(alpha = 0.08f)
+            .border(
+                width = 1.dp,
+                color = if (isLight) Color.Black.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.12f),
+                shape = CircleShape
             )
+            .background(
+                color = if (isLight) Color.Black.copy(alpha = 0.03f) else Color.White.copy(alpha = 0.05f),
+                shape = CircleShape
+            )
+            .clip(CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -323,19 +335,20 @@ fun KeyButton(
                 text = number,
                 color = if (isLight) Color.Black else Color.White,
                 fontSize = numberSize,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = FontWeight.Light,
                 textAlign = TextAlign.Center,
                 lineHeight = 32.sp
             )
             if (letters.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(1.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = letters,
-                    color = if (isLight) Color.Gray else Color.LightGray.copy(alpha = 0.62f),
+                    color = if (isLight) Color.Black.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.4f),
                     fontSize = 9.sp,
-                    fontWeight = FontWeight.ExtraBold,
+                    fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
-                    letterSpacing = 1.sp
+                    letterSpacing = 1.5.sp,
+                    modifier = Modifier.offset(y = (-2).dp)
                 )
             }
         }

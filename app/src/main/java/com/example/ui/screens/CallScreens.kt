@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import java.util.Locale
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -69,9 +70,9 @@ fun IncomingCallScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF022E3A),
-                        Color(0xFF001520),
-                        Color(0xFF03161D)
+                        Color(0xFF030712),
+                        Color(0xFF0B1229),
+                        Color(0xFF030712)
                     )
                 )
             )
@@ -165,56 +166,175 @@ fun IncomingCallScreen(
 
             Spacer(modifier = Modifier.height(48.dp))
 
-            // 3. Sliding Track answer layout (capsule track from photo)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(68.dp)
-                    .clip(RoundedCornerShape(34.dp))
-                    .background(Color.White.copy(alpha = 0.12f))
-                    .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(34.dp)),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                // slide guidance pulsing label
-                Text(
-                    text = "slide to answer",
-                    color = Color.White.copy(alpha = textAlpha),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
-                )
+            val isLocked by viewModel.isLockedSimulation.collectAsState()
 
-                // Draggable phone handle
+            if (isLocked) {
+                // 3. Sliding Track answer layout (capsule track from photo)
                 Box(
                     modifier = Modifier
-                        .offset { IntOffset(slideOffset.roundToInt(), 0) }
-                        .size(68.dp)
-                        .padding(4.dp)
-                        .clip(CircleShape)
-                        .background(Color.White)
-                        .draggable(
-                            orientation = Orientation.Horizontal,
-                            state = rememberDraggableState { delta ->
-                                slideOffset = (slideOffset + delta).coerceIn(0f, maxSlideDistancePx)
-                            },
-                            onDragStopped = {
-                                if (slideOffset > maxSlideDistancePx * 0.7f) {
-                                    viewModel.answerIncomingCall()
-                                } else {
-                                    slideOffset = 0f // Bounce back
-                                }
-                            }
-                        )
-                        .testTag("slide_answer_handle"),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .height(68.dp)
+                        .clip(RoundedCornerShape(34.dp))
+                        .background(Color.White.copy(alpha = 0.12f))
+                        .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(34.dp)),
+                    contentAlignment = Alignment.CenterStart
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Call,
-                        contentDescription = "Answer Call",
-                        tint = Color(0xFF34C759), // Active call Green
-                        modifier = Modifier.size(28.dp)
+                    // slide guidance pulsing label
+                    Text(
+                        text = "slide to answer",
+                        color = Color.White.copy(alpha = textAlpha),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
                     )
+
+                    // Draggable phone handle
+                    Box(
+                        modifier = Modifier
+                            .offset { IntOffset(slideOffset.roundToInt(), 0) }
+                            .size(68.dp)
+                            .padding(4.dp)
+                            .clip(CircleShape)
+                            .background(Color.White)
+                            .draggable(
+                                orientation = Orientation.Horizontal,
+                                state = rememberDraggableState { delta ->
+                                    slideOffset = (slideOffset + delta).coerceIn(0f, maxSlideDistancePx)
+                                },
+                                onDragStopped = {
+                                    if (slideOffset > maxSlideDistancePx * 0.7f) {
+                                        viewModel.answerIncomingCall()
+                                    } else {
+                                        slideOffset = 0f // Bounce back
+                                    }
+                                }
+                            )
+                            .testTag("slide_answer_handle"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Call,
+                            contentDescription = "Answer Call",
+                            tint = Color(0xFF34C759), // Active call Green
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+            } else {
+                // Unlocked Mode: Side-by-side dual slide to answer & decline!
+                var declineSlideOffset by remember { mutableStateOf(0f) }
+                var answerSlideOffset by remember { mutableStateOf(0f) }
+                
+                val dualMaxDistanceDp = 70.dp
+                val dualMaxDistancePx = with(LocalDensity.current) { dualMaxDistanceDp.toPx() }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Decline Slider (Left)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(60.dp)
+                            .clip(RoundedCornerShape(30.dp))
+                            .background(Color(0xFF3C1818).copy(alpha = 0.6f))
+                            .border(1.dp, Color(0xFFFF3B30).copy(alpha = 0.3f), RoundedCornerShape(30.dp)),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Text(
+                            text = "decline",
+                            color = Color(0xFFFF8282).copy(alpha = textAlpha),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.fillMaxWidth().padding(start = 44.dp),
+                            textAlign = TextAlign.Center
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .offset { IntOffset(declineSlideOffset.roundToInt(), 0) }
+                                .size(60.dp)
+                                .padding(4.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFFF3B30))
+                                .draggable(
+                                    orientation = Orientation.Horizontal,
+                                    state = rememberDraggableState { delta ->
+                                        declineSlideOffset = (declineSlideOffset + delta).coerceIn(0f, dualMaxDistancePx)
+                                    },
+                                    onDragStopped = {
+                                        if (declineSlideOffset > dualMaxDistancePx * 0.7f) {
+                                            viewModel.hangUpCall()
+                                        } else {
+                                            declineSlideOffset = 0f
+                                        }
+                                    }
+                                )
+                                .testTag("dual_slide_decline"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CallEnd,
+                                contentDescription = "Decline Call",
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+
+                    // Answer Slider (Right)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(60.dp)
+                            .clip(RoundedCornerShape(30.dp))
+                            .background(Color(0xFF143322).copy(alpha = 0.6f))
+                            .border(1.dp, Color(0xFF34C759).copy(alpha = 0.3f), RoundedCornerShape(30.dp)),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Text(
+                            text = "answer",
+                            color = Color(0xFF8FFFA8).copy(alpha = textAlpha),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.fillMaxWidth().padding(start = 44.dp),
+                            textAlign = TextAlign.Center
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .offset { IntOffset(answerSlideOffset.roundToInt(), 0) }
+                                .size(60.dp)
+                                .padding(4.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF34C759))
+                                .draggable(
+                                    orientation = Orientation.Horizontal,
+                                    state = rememberDraggableState { delta ->
+                                        answerSlideOffset = (answerSlideOffset + delta).coerceIn(0f, dualMaxDistancePx)
+                                    },
+                                    onDragStopped = {
+                                        if (answerSlideOffset > dualMaxDistancePx * 0.7f) {
+                                            viewModel.answerIncomingCall()
+                                        } else {
+                                            answerSlideOffset = 0f
+                                        }
+                                    }
+                                )
+                                .testTag("dual_slide_answer"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Call,
+                                contentDescription = "Answer Call",
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -248,10 +368,9 @@ fun OngoingCallScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF04373B), // Premium teal
-                        Color(0xFF023136),
-                        Color(0xFF012028),
-                        Color(0xFF00121A)
+                        Color(0xFF030712),
+                        Color(0xFF0F172A),
+                        Color(0xFF030712)
                     )
                 )
             )
@@ -492,5 +611,267 @@ fun ActionButtonCircle(
             tint = iconColor,
             modifier = Modifier.size(28.dp)
         )
+    }
+}
+
+@Composable
+fun HeadsUpCallPopup(
+    callState: AppCallState,
+    viewModel: DialerViewModel,
+    settings: DialerSettings,
+    modifier: Modifier = Modifier
+) {
+    val durationSeconds by viewModel.callTimerSeconds.collectAsState(initial = 0)
+    val isMuted by viewModel.isCallMuted.collectAsState(initial = false)
+    val isSpeakerOn by viewModel.isSpeakerOn.collectAsState(initial = false)
+
+    val formattedDuration = remember(durationSeconds) {
+        val mins = durationSeconds / 60
+        val secs = durationSeconds % 60
+        String.format(Locale.getDefault(), "%02d:%02d", mins, secs)
+    }
+
+    GlassCard(
+        settings = settings,
+        modifier = modifier
+            .fillMaxWidth()
+            .wrapContentHeight()
+            .clickable {
+                viewModel.showHeadsUpCallPopup.value = false
+            },
+        cornerRadiusOverride = 24.dp,
+        borderWidth = 1.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            when (callState) {
+                is AppCallState.Incoming -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1.0f)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .background(settings.getAccentColor().copy(alpha = 0.15f))
+                                    .border(1.dp, settings.getAccentColor().copy(alpha = 0.3f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = callState.name.take(2).uppercase(),
+                                    color = settings.getAccentColor(),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = callState.name,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                                Text(
+                                    text = "Incoming Call (${callState.number})",
+                                    color = Color.LightGray.copy(alpha = 0.7f),
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFFF3B30))
+                                    .clickable { viewModel.hangUpCall() }
+                                    .testTag("headsup_decline_btn"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CallEnd,
+                                    contentDescription = "Decline",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF34C759))
+                                    .clickable { viewModel.answerIncomingCall() }
+                                    .testTag("headsup_answer_btn"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Call,
+                                    contentDescription = "Answer",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+                is AppCallState.Ongoing -> {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White.copy(alpha = 0.1f))
+                                        .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Call,
+                                        contentDescription = null,
+                                        tint = Color(0xFF34C759),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = callState.name,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp
+                                    )
+                                    Text(
+                                        text = "Ongoing Call • $formattedDuration",
+                                        color = Color(0xFF34C759),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFFF3B30))
+                                    .clickable { viewModel.hangUpCall() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CallEnd,
+                                    contentDescription = "End",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.clickable { viewModel.toggleMute() }
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isMuted) Color.White else Color.White.copy(alpha = 0.08f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.MicOff,
+                                        contentDescription = "Mute",
+                                        tint = if (isMuted) Color.Black else Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = if (isMuted) "Muted" else "Mute",
+                                    color = Color.LightGray,
+                                    fontSize = 10.sp
+                                )
+                            }
+
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.clickable { viewModel.toggleSpeaker() }
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isSpeakerOn) Color.White else Color.White.copy(alpha = 0.08f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.VolumeUp,
+                                        contentDescription = "Speaker",
+                                        tint = if (isSpeakerOn) Color.Black else Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = if (isSpeakerOn) "Speaker On" else "Speaker",
+                                    color = Color.LightGray,
+                                    fontSize = 10.sp
+                                )
+                            }
+
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.clickable { viewModel.showHeadsUpCallPopup.value = false }
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White.copy(alpha = 0.08f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Fullscreen,
+                                        contentDescription = "Expand",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Expand",
+                                    color = Color.LightGray,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                    }
+                }
+                else -> {}
+            }
+        }
     }
 }

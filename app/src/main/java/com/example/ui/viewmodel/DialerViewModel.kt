@@ -101,6 +101,13 @@ class DialerViewModel(application: Application) : AndroidViewModel(application) 
     private val _callState = MutableStateFlow<AppCallState>(AppCallState.Idle)
     val callState: StateFlow<AppCallState> = _callState
 
+    // Live permission and default status states
+    val isDefaultDialer = MutableStateFlow(true)
+    val arePermissionsGranted = MutableStateFlow(true)
+    val isSettingsOpen = MutableStateFlow(false)
+    val isLockedSimulation = MutableStateFlow(false) // Toggle: true = Locked FS Slider, false = Unlocked Samsung Style
+    val showHeadsUpCallPopup = MutableStateFlow(false) // Trigger floating popup active call inside other screens
+
     // Call Active features
     private val _callTimerSeconds = MutableStateFlow(0)
     val callTimerSeconds: StateFlow<Int> = _callTimerSeconds
@@ -195,17 +202,19 @@ class DialerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     // Simulate Receiving Incoming Call with 3 second delay to showcase UI
-    fun triggerSimulatedIncomingCallDelay(seconds: Int = 3, explicitNumber: String? = null, explicitName: String? = null) {
+    fun triggerSimulatedIncomingCallDelay(seconds: Int = 3, isHeadsUp: Boolean = false, explicitNumber: String? = null, explicitName: String? = null) {
         viewModelScope.launch {
             delay(seconds * 1000L)
             val number = explicitNumber ?: "+49 160 95620427"
             val name = explicitName ?: "Sharon Z."
             val label = "mobile"
+            showHeadsUpCallPopup.value = isHeadsUp
             _callState.value = AppCallState.Incoming(name, number, label)
         }
     }
 
-    fun triggerIncomingCallImmediately(name: String, number: String, label: String = "mobile") {
+    fun triggerIncomingCallImmediately(name: String, number: String, label: String = "mobile", isHeadsUp: Boolean = false) {
+        showHeadsUpCallPopup.value = isHeadsUp
         _callState.value = AppCallState.Incoming(name, number, label)
     }
 
@@ -268,6 +277,7 @@ class DialerViewModel(application: Application) : AndroidViewModel(application) 
         stopCallTimer()
         stopLiveTranscripts()
         _callState.value = AppCallState.Idle
+        showHeadsUpCallPopup.value = false
         _isCallMuted.value = false
         _isSpeakerOn.value = false
         _isFaceTimeActive.value = false

@@ -28,12 +28,10 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.settings.DialerSettings
 
 // Predefined Luxury Gradients
-val AuroraDarkGradient = Brush.verticalGradient(
+val HighDensitySlateGradient = Brush.verticalGradient(
     colors = listOf(
-        Color(0xFF04373B), // Deep Teal
-        Color(0xFF023136), 
-        Color(0xFF012028), // Dark Ocean
-        Color(0xFF00121A)
+        Color(0xFF030712), // Deep Near-Black Slate (High Density Theme)
+        Color(0xFF030712)
     )
 )
 
@@ -69,7 +67,7 @@ fun GlassBackground(
     content: @Composable BoxScope.() -> Unit
 ) {
     val brush = when (settings.backgroundGradientIndex) {
-        0 -> AuroraDarkGradient
+        0 -> HighDensitySlateGradient
         1 -> SkyGlassGradient
         2 -> VelvetPurpleGradient
         else -> AmoledCosmicGradient
@@ -85,37 +83,51 @@ fun GlassBackground(
     ) {
         // Overlay some abstract blurry glass color spots in non-AMOLED modes for extra richness!
         if (settings.themeMode != "AMOLED") {
+            val isHighDensity = settings.backgroundGradientIndex == 0
+            
+            val glowColor1 = if (isHighDensity) {
+                Color(0xFF4F46E5).copy(alpha = 0.20f) // Indigo glow
+            } else {
+                settings.getAccentColor().copy(alpha = 0.25f)
+            }
+            
+            val glowColor2 = if (isHighDensity) {
+                Color(0xFF14B8A6).copy(alpha = 0.15f) // Teal/Emerald glow
+            } else {
+                Color(0xFF00E676).copy(alpha = 0.18f)
+            }
+
             Box(
                 modifier = Modifier
-                    .size(280.dp)
-                    .offset(x = (-40).dp, y = 80.dp)
+                    .size(if (isHighDensity) 380.dp else 280.dp)
+                    .offset(x = if (isHighDensity) (-60).dp else (-40).dp, y = if (isHighDensity) (-40).dp else 80.dp)
                     .clip(CircleShape)
                     .background(
                         Brush.radialGradient(
                             colors = listOf(
-                                settings.getAccentColor().copy(alpha = 0.25f),
+                                glowColor1,
                                 Color.Transparent
                             )
                         )
                     )
-                    .blur(60.dp)
+                    .blur(if (isHighDensity) 100.dp else 60.dp)
             )
 
             Box(
                 modifier = Modifier
-                    .size(310.dp)
+                    .size(if (isHighDensity) 340.dp else 310.dp)
                     .align(Alignment.BottomEnd)
-                    .offset(x = 60.dp, y = (-20).dp)
+                    .offset(x = 60.dp, y = if (isHighDensity) 30.dp else (-20).dp)
                     .clip(CircleShape)
                     .background(
                         Brush.radialGradient(
                             colors = listOf(
-                                Color(0xFF00E676).copy(alpha = 0.18f), // Soft Emerald
+                                glowColor2,
                                 Color.Transparent
                             )
                         )
                     )
-                    .blur(70.dp)
+                    .blur(if (isHighDensity) 80.dp else 70.dp)
             )
         }
 
@@ -235,6 +247,7 @@ fun GlassCircleButton(
     modifier: Modifier = Modifier,
     isSelected: Boolean = false,
     backgroundColor: Color? = null,
+    backgroundBrush: Brush? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
     // Large 72dp Circular button used for keys
@@ -248,10 +261,16 @@ fun GlassCircleButton(
         else -> Color.White.copy(alpha = 0.15f) // matches standard transparent keyboard feel!
     }
 
-    val highlightColor = if (isSelected || backgroundColor != null) {
+    val highlightColor = if (isSelected || backgroundColor != null || backgroundBrush != null) {
         Color.White.copy(alpha = 0.5f)
     } else {
         if (isLight) Color.White.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.15f)
+    }
+
+    val backgroundModifier = if (backgroundBrush != null) {
+        Modifier.background(brush = backgroundBrush, shape = CircleShape)
+    } else {
+        Modifier.background(color = baseColor, shape = CircleShape)
     }
 
     Box(
@@ -266,10 +285,7 @@ fun GlassCircleButton(
                 color = highlightColor,
                 shape = CircleShape
             )
-            .background(
-                color = baseColor,
-                shape = CircleShape
-            )
+            .then(backgroundModifier)
             .clip(CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,

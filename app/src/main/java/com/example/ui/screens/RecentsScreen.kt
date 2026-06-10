@@ -5,6 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -110,15 +111,57 @@ fun RecentsScreen(
                 }
             }
 
-            IconButton(
-                onClick = { /* Sort/Filter action */ },
-                modifier = Modifier.testTag("sort_logs_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Sort,
-                    contentDescription = "Sort call logs",
-                    tint = if (settings.themeMode == "LIGHT") Color.Black else Color.White
-                )
+            var menuExpanded by remember { mutableStateOf(false) }
+
+            Box {
+                IconButton(
+                    onClick = { menuExpanded = true },
+                    modifier = Modifier.testTag("sort_logs_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Menu options",
+                        tint = if (settings.themeMode == "LIGHT") Color.Black else Color.White
+                    )
+                }
+
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                    modifier = Modifier.background(Color(0xFF1E293B)),
+                    scrollState = rememberScrollState()
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Settings Theme & Customize", color = Color.White, fontSize = 14.sp) },
+                        onClick = {
+                            menuExpanded = false
+                            viewModel.isSettingsOpen.value = true
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Simulate Inbound Call (Locked)", color = Color.White, fontSize = 14.sp) },
+                        onClick = {
+                            menuExpanded = false
+                            viewModel.isLockedSimulation.value = true
+                            viewModel.triggerSimulatedIncomingCallDelay(seconds = 2, isHeadsUp = false)
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Simulate Inbound Call (Unlocked)", color = Color.White, fontSize = 14.sp) },
+                        onClick = {
+                            menuExpanded = false
+                            viewModel.isLockedSimulation.value = false
+                            viewModel.triggerSimulatedIncomingCallDelay(seconds = 2, isHeadsUp = false)
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Simulate Heads-Up Overlay", color = Color.White, fontSize = 14.sp) },
+                        onClick = {
+                            menuExpanded = false
+                            viewModel.triggerSimulatedIncomingCallDelay(seconds = 2, isHeadsUp = true)
+                        }
+                    )
+                }
             }
         }
 

@@ -8,8 +8,8 @@ data class DialerSettings(
     val blurStrength: Float = 40f,          // 0f - 100f
     val glassIntensity: Float = 0.35f,      // 0.1f - 0.9f (Opacity)
     val cornerRadius: Int = 24,            // 0dp - 48dp
-    val accentColorHex: String = "#0288D1", // Main blue accent
-    val backgroundGradientIndex: Int = 0,   // 0 = Aurora Dark, 1 = Sky Glass, 2 = Velvet Purple, 3 = AMOLED Cosmic
+    val accentColorHex: String = "#6366F1", // Indigo accent color
+    val backgroundGradientIndex: Int = 0,   // 0 = High Density Slate, 1 = Sky Glass, 2 = Velvet Purple, 3 = AMOLED Cosmic
     val navigationStyle: String = "Glass Floating", // Floating, Standard, Minimal
     val dialPadStyle: String = "Circular Glass",    // Circular Glass, Squircle Glass, Borderless
     val incomingCallStyle: String = "Full Screen Blurred Glow",
@@ -32,7 +32,7 @@ class SettingsManager(context: Context) {
             blurStrength = prefs.getFloat("blurStrength", 40f),
             glassIntensity = prefs.getFloat("glassIntensity", 0.35f),
             cornerRadius = prefs.getInt("cornerRadius", 24),
-            accentColorHex = prefs.getString("accentColorHex", "#0288D1") ?: "#0288D1",
+            accentColorHex = prefs.getString("accentColorHex", "#6366F1") ?: "#6366F1",
             backgroundGradientIndex = prefs.getInt("backgroundGradientIndex", 0),
             navigationStyle = prefs.getString("navigationStyle", "Glass Floating") ?: "Glass Floating",
             dialPadStyle = prefs.getString("dialPadStyle", "Circular Glass") ?: "Circular Glass",
