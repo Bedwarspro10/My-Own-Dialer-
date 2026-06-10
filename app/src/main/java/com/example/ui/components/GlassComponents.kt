@@ -25,6 +25,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.Call
 import com.example.ui.settings.DialerSettings
 
 // Predefined Luxury Gradients
@@ -291,4 +296,163 @@ fun GlassCircleButton(
         contentAlignment = Alignment.Center,
         content = content
     )
+}
+
+@Composable
+fun ContactDetailDialog(
+    name: String,
+    phoneNumber: String,
+    label: String,
+    avatarColorHex: String,
+    isFavorite: Boolean,
+    settings: DialerSettings,
+    onDismiss: () -> Unit,
+    onCall: () -> Unit,
+    onToggleFavorite: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss
+    ) {
+        val color = try {
+            Color(android.graphics.Color.parseColor(avatarColorHex))
+        } catch (e: Exception) {
+            settings.getAccentColor()
+        }
+        val isLight = settings.themeMode == "LIGHT"
+        
+        GlassCard(
+            settings = settings,
+            modifier = modifier
+                .fillMaxWidth()
+                .wrapContentHeight(),
+            cornerRadiusOverride = 28.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Header Row (Close & Favorite)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    androidx.compose.material3.IconButton(
+                        onClick = onDismiss
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = if (isLight) Color.Black else Color.White
+                        )
+                    }
+                    
+                    if (onToggleFavorite != null) {
+                        androidx.compose.material3.IconButton(
+                            onClick = onToggleFavorite
+                        ) {
+                            Icon(
+                                imageVector = if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
+                                contentDescription = "Toggle Favorite",
+                                tint = if (isFavorite) Color(0xFFFFD607) else (if (isLight) Color.LightGray else Color.Gray)
+                            )
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.size(24.dp))
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // Huge Glass Profile Circle with initials
+                Box(
+                    modifier = Modifier
+                        .size(96.dp)
+                        .clip(CircleShape)
+                        .background(color.copy(alpha = 0.15f))
+                        .border(2.dp, color.copy(alpha = 0.5f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = name.take(2).uppercase(),
+                        color = color,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        fontSize = 32.sp
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Name
+                Text(
+                    text = name,
+                    fontSize = 24.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    color = if (isLight) Color.Black else Color.White,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                
+                Spacer(modifier = Modifier.height(6.dp))
+                
+                // Label Classification (pill shape)
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(settings.getAccentColor().copy(alpha = 0.15f))
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = label.uppercase(),
+                        fontSize = 11.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        color = settings.getAccentColor()
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Phone Number field
+                Text(
+                    text = phoneNumber,
+                    fontSize = 18.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                    color = Color.Gray,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                // Action: Voice Call Button with green glass background
+                androidx.compose.material3.Button(
+                    onClick = {
+                        onDismiss()
+                        onCall()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF34C759)
+                    ),
+                    shape = RoundedCornerShape(settings.cornerRadius.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Call,
+                        contentDescription = "Call",
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Call Contact",
+                        color = Color.White,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+        }
+    }
 }

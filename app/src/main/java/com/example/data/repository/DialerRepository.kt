@@ -35,6 +35,10 @@ class DialerRepository(
         contactDao.insertContact(contact)
     }
 
+    suspend fun updateContact(contact: ContactEntity) = withContext(Dispatchers.IO) {
+        contactDao.updateContact(contact)
+    }
+
     suspend fun insertCallLog(callLog: CallLogEntity) = withContext(Dispatchers.IO) {
         callLogDao.insertCallLog(callLog)
     }

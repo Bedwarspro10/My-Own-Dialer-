@@ -172,8 +172,12 @@ class DialerViewModel(application: Application) : AndroidViewModel(application) 
 
     // Settings adjustments
     fun updateSettings(newSettings: DialerSettings) {
+        val oldSettings = _uiSettings.value
         _uiSettings.value = newSettings
         settingsManager.saveSettings(newSettings)
+        if (oldSettings.transcriptionLanguage != newSettings.transcriptionLanguage && _callState.value is AppCallState.Ongoing) {
+            startLiveTranscripts()
+        }
     }
 
     // Initiating Outgoing Call Flow
@@ -314,16 +318,37 @@ class DialerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun startLiveTranscripts() {
+        val lang = _uiSettings.value.transcriptionLanguage
         _translationLogs.value = listOf(
-            "SYSTEM" to "Translation is on for this call"
+            "SYSTEM" to when (lang) {
+                "Hindi" -> "Hindi translation & transcription is active"
+                "English (IN)" -> "English (IN) transcribing is active"
+                else -> "Translation is on for this call"
+            }
         )
-        val quotes = listOf(
-            "Hallo, sind Sie für eine Hochzeit am 6. Dezember verfügbar?" to "Hi, are you available to cater a wedding on December 6?",
-            "Ja, an diesem Wochenende sind noch Termine frei." to "Yes, there are still dates available that weekend.",
-            "Wie viele Gäste erwarten Sie im Durchschnitt?" to "How many guests are you expecting on average?",
-            "Wir planen mit etwa 120 Personen für das Abendessen." to "We are planning for about 120 people for dinner.",
-            "Toll! Ich sende Ihnen unsere Menüvorschläge per E-Mail." to "Great! I will email you our menu proposals."
-        )
+        val quotes = when (lang) {
+            "Hindi" -> listOf(
+                "नमस्ते, क्या आप आज शाम उपलब्ध हैं?" to "Hi, are you available this evening?",
+                "Yes, I am free after five PM." to "Yes, I am free after five PM.",
+                "क्या हम प्रोजेक्ट के बारे में चर्चा कर सकते हैं?" to "Can we discuss about the project?",
+                "Sure, sending the Google Meet link." to "Sure, sending the Google Meet link.",
+                "धन्यवाद, मैं समय पर शामिल हो जाऊंगा।" to "Thank you, I will join on time."
+            )
+            "English (IN)" -> listOf(
+                "Hello, are you reaching office today itself?" to "Hello, are you reaching the office today?",
+                "Yes, I will be starting from home shortly." to "Yes, I will be starting from home shortly.",
+                "Acha, then please bring the project file jarur." to "Okay, then please make sure to bring the project file.",
+                "Sure, I have kept it ready." to "Sure, I have kept it ready.",
+                "Chalo perfect, see you in the meeting." to "Alright perfect, see you in the meeting."
+            )
+            else -> listOf(
+                "Hallo, sind Sie für eine Hochzeit am 6. Dezember verfügbar?" to "Hi, are you available to cater a wedding on December 6?",
+                "Ja, an diesem Wochenende sind noch Termine frei." to "Yes, there are still dates available that weekend.",
+                "Wie viele Gäste erwarten Sie im Durchschnitt?" to "How many guests are you expecting on average?",
+                "Wir planen mit etwa 120 Personen für das Abendessen." to "We are planning for about 120 people for dinner.",
+                "Toll! Ich sende Ihnen unsere Menüvorschläge per E-Mail." to "Great! I will email you our menu proposals."
+            )
+        }
 
         transcriptJob?.cancel()
         transcriptJob = viewModelScope.launch {
@@ -403,6 +428,12 @@ class DialerViewModel(application: Application) : AndroidViewModel(application) 
         } catch (e: Exception) {
             // Emulators or devices without sim fallback to in-app simulation
             startCall(number)
+        }
+    }
+
+    fun toggleContactFavorite(contact: com.example.data.database.ContactEntity) {
+        viewModelScope.launch {
+            repository.updateContact(contact.copy(isFavorite = !contact.isFavorite))
         }
     }
 }

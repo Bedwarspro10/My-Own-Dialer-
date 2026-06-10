@@ -41,6 +41,8 @@ fun ContactsScreen(
     val contacts by viewModel.contactsList.collectAsState()
     val searchQuery by viewModel.contactSearchQuery.collectAsState()
     
+    var activeDetailContact by remember { mutableStateOf<com.example.data.database.ContactEntity?>(null) }
+    
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
@@ -169,7 +171,7 @@ fun ContactsScreen(
                             contact = contact,
                             settings = settings,
                             onClick = {
-                                onNavigateToCall(contact.phoneNumber, contact.name)
+                                activeDetailContact = contact
                             }
                         )
                     }
@@ -215,6 +217,20 @@ fun ContactsScreen(
                 }
             }
         }
+    }
+
+    activeDetailContact?.let { contact ->
+        com.example.ui.components.ContactDetailDialog(
+            name = contact.name,
+            phoneNumber = contact.phoneNumber,
+            label = contact.label,
+            avatarColorHex = contact.avatarColorHex,
+            isFavorite = contact.isFavorite,
+            settings = settings,
+            onDismiss = { activeDetailContact = null },
+            onCall = { onNavigateToCall(contact.phoneNumber, contact.name) },
+            onToggleFavorite = { viewModel.toggleContactFavorite(contact) }
+        )
     }
 }
 

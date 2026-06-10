@@ -50,8 +50,10 @@ fun RecentsScreen(
     val callLogs by viewModel.callLogsList.collectAsState()
     val filter by viewModel.recentsFilter.collectAsState()
     val favorites by viewModel.favoriteContacts.collectAsState()
+    val contacts by viewModel.contactsList.collectAsState()
     
     var searchQuery by remember { mutableStateOf("") }
+    var activeDetailContact by remember { mutableStateOf<ContactEntity?>(null) }
 
     Column(
         modifier = modifier
@@ -300,12 +302,35 @@ fun RecentsScreen(
                             viewModel.startCall(log.phoneNumber, log.callerName)
                         },
                         onInfo = {
-                            // Show details or quick trigger
+                            val match = contacts.firstOrNull { it.phoneNumber.replace(" ", "") == log.phoneNumber.replace(" ", "") }
+                            activeDetailContact = match ?: ContactEntity(
+                                name = log.callerName ?: log.phoneNumber,
+                                phoneNumber = log.phoneNumber,
+                                label = log.label,
+                                avatarColorHex = "#7A8AFF",
+                                isFavorite = false
+                            )
                         }
                     )
                 }
             }
         }
+    }
+
+    activeDetailContact?.let { contact ->
+        com.example.ui.components.ContactDetailDialog(
+            name = contact.name,
+            phoneNumber = contact.phoneNumber,
+            label = contact.label,
+            avatarColorHex = contact.avatarColorHex,
+            isFavorite = contact.isFavorite,
+            settings = settings,
+            onDismiss = { activeDetailContact = null },
+            onCall = { onNavigateToCall(contact.phoneNumber, contact.name) },
+            onToggleFavorite = if (contact.id != 0) {
+                { viewModel.toggleContactFavorite(contact) }
+            } else null
+        )
     }
 }
 

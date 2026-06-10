@@ -39,6 +39,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
+import android.app.KeyguardManager
+import com.example.ui.viewmodel.CallStateHolder
+import com.example.ui.viewmodel.HolderCallEvent
+import kotlinx.coroutines.launch
 import com.example.ui.components.GlassBackground
 import com.example.ui.components.GlassCard
 import com.example.ui.screens.*
@@ -50,6 +55,10 @@ import com.example.ui.viewmodel.DialerViewModel
 class MainActivity : ComponentActivity() {
 
     private lateinit var viewModel: DialerViewModel
+
+    companion object {
+        var isResumed = false
+    }
 
     // Request permissions launcher
     private val permissionsLauncher = registerForActivityResult(
@@ -65,7 +74,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        isResumed = true
         checkAppPermissionsAndStatus()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        isResumed = false
     }
 
     private fun checkAppPermissionsAndStatus() {
@@ -76,7 +91,8 @@ class MainActivity : ComponentActivity() {
 
         val contactsGranted = ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
         val logsGranted = ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED
-        viewModel.arePermissionsGranted.value = contactsGranted && logsGranted
+        val phoneStateGranted = ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
+        viewModel.arePermissionsGranted.value = contactsGranted && logsGranted && phoneStateGranted
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -87,6 +103,47 @@ class MainActivity : ComponentActivity() {
 
         // Handle dialer tel scheme incoming intent
         handleDialerIntent(intent)
+
+        lifecycleScope.launch {
+            CallStateHolder.callEventFlow.collect { event ->
+                val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+                val isDeviceLocked = keyguardManager?.isKeyguardLocked ?: false
+                val isAppInBackground = !isResumed
+                
+                when (event) {
+                    is HolderCallEvent.Incoming -> {
+                        val finalName = viewModel.contactsList.value
+                            .firstOrNull { it.phoneNumber.replace(" ", "") == event.number.replace(" ", "") }?.name ?: event.number
+                        val label = viewModel.contactsList.value
+                            .firstOrNull { it.phoneNumber.replace(" ", "") == event.number.replace(" ", "") }?.label ?: "mobile"
+                        
+                        viewModel.isLockedSimulation.value = isDeviceLocked
+                        viewModel.triggerIncomingCallImmediately(
+                            name = finalName,
+                            number = event.number,
+                            label = label,
+                            isHeadsUp = isAppInBackground && !isDeviceLocked
+                        )
+                        
+                        // If app is in background but device is locked, we want to launch MainActivity on top of the lockscreen!
+                        if (isDeviceLocked || !isAppInBackground) {
+                            val launchIntent = Intent(this@MainActivity, MainActivity::class.java).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                            }
+                            startActivity(launchIntent)
+                        }
+                    }
+                    is HolderCallEvent.Ongoing -> {
+                        val finalName = viewModel.contactsList.value
+                            .firstOrNull { it.phoneNumber.replace(" ", "") == event.number.replace(" ", "") }?.name ?: event.number
+                        viewModel.startCall(event.number, finalName)
+                    }
+                    is HolderCallEvent.Idle -> {
+                        viewModel.hangUpCall()
+                    }
+                }
+            }
+        }
 
         setContent {
             MyApplicationTheme {
@@ -182,7 +239,8 @@ class MainActivity : ComponentActivity() {
             android.Manifest.permission.WRITE_CONTACTS,
             android.Manifest.permission.CALL_PHONE,
             android.Manifest.permission.READ_CALL_LOG,
-            android.Manifest.permission.WRITE_CALL_LOG
+            android.Manifest.permission.WRITE_CALL_LOG,
+            android.Manifest.permission.READ_PHONE_STATE
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(android.Manifest.permission.POST_NOTIFICATIONS)

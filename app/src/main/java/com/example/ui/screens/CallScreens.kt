@@ -435,29 +435,31 @@ fun OngoingCallScreen(
                     }
                 } else {
                     // Chat speech bubble styling
-                    val isEnglish = lang.contains("cater a wedding") || lang.contains("email") || lang.contains("available") || lang.contains("expecting")
+                    val isSelf = lang.contains("cater a wedding") || lang.contains("email") || lang.contains("available") || lang.contains("expecting") ||
+                            lang.contains("free") || lang.contains("starting") || lang.contains("ready") || lang.contains("Meet link") ||
+                            lang == text
                     Box(
                         modifier = Modifier
-                            .align(if (isEnglish) Alignment.End else Alignment.Start)
+                            .align(if (isSelf) Alignment.End else Alignment.Start)
                             .padding(bottom = 12.dp)
                             .widthIn(max = 280.dp)
                             .clip(
                                 RoundedCornerShape(
                                     topStart = 18.dp,
                                     topEnd = 18.dp,
-                                    bottomStart = if (isEnglish) 18.dp else 4.dp,
-                                    bottomEnd = if (isEnglish) 4.dp else 18.dp
+                                    bottomStart = if (isSelf) 18.dp else 4.dp,
+                                    bottomEnd = if (isSelf) 4.dp else 18.dp
                                 )
                             )
                             .background(
-                                if (isEnglish) Color(0xFF1B4E54) else Color(0xFF14303B)
+                                if (isSelf) Color(0xFF1B4E54) else Color(0xFF14303B)
                             )
                             .padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
                         Column {
-                            if (!isEnglish) {
+                            if (!isSelf) {
                                 Text(
-                                    text = lang, // Original text German
+                                    text = lang, // Original text
                                     color = Color.LightGray,
                                     fontSize = 11.sp,
                                     modifier = Modifier.padding(bottom = 2.dp)
@@ -474,11 +476,19 @@ fun OngoingCallScreen(
                 }
             }
 
-            // Small "Translating German" selector capsule as shown in screenshot
+            // Small dynamic transcription selector capsule
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color.White.copy(alpha = 0.08f))
+                    .clickable {
+                        val nextLang = when (settings.transcriptionLanguage) {
+                            "Hindi" -> "English (IN)"
+                            "English (IN)" -> "German"
+                            else -> "Hindi"
+                        }
+                        viewModel.updateSettings(settings.copy(transcriptionLanguage = nextLang))
+                    }
                     .padding(horizontal = 12.dp, vertical = 4.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -490,7 +500,11 @@ fun OngoingCallScreen(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "Translating German ↕",
+                        text = when (settings.transcriptionLanguage) {
+                            "Hindi" -> "Translating Hindi ↕"
+                            "English (IN)" -> "English (IN) Active ↕"
+                            else -> "Translating German ↕"
+                        },
                         color = Color.LightGray,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium

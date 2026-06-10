@@ -15,7 +15,9 @@ data class DialerSettings(
     val incomingCallStyle: String = "Full Screen Blurred Glow",
     val contactCardStyle: String = "Large Glass Grid",
     val animationSpeedMultiplier: Float = 1.0f, // 0.5f, 1.0f, 1.5f
-    val themeMode: String = "DARK" // LIGHT, DARK, AMOLED
+    val themeMode: String = "DARK", // LIGHT, DARK, AMOLED
+    val selectedRingtone: String = "Classic Sonnet", // Premium ringtone choices
+    val transcriptionLanguage: String = "Hindi" // Hindi, English (IN), German
 ) {
     fun getAccentColor(): Color = try {
         Color(android.graphics.Color.parseColor(accentColorHex))
@@ -39,7 +41,9 @@ class SettingsManager(context: Context) {
             incomingCallStyle = prefs.getString("incomingCallStyle", "Full Screen Blurred Glow") ?: "Full Screen Blurred Glow",
             contactCardStyle = prefs.getString("contactCardStyle", "Large Glass Grid") ?: "Large Glass Grid",
             animationSpeedMultiplier = prefs.getFloat("animationSpeedMultiplier", 1.0f),
-            themeMode = prefs.getString("themeMode", "DARK") ?: "DARK"
+            themeMode = prefs.getString("themeMode", "DARK") ?: "DARK",
+            selectedRingtone = prefs.getString("selectedRingtone", "Classic Sonnet") ?: "Classic Sonnet",
+            transcriptionLanguage = prefs.getString("transcriptionLanguage", "Hindi") ?: "Hindi"
         )
     }
 
@@ -56,6 +60,8 @@ class SettingsManager(context: Context) {
             putString("contactCardStyle", settings.contactCardStyle)
             putFloat("animationSpeedMultiplier", settings.animationSpeedMultiplier)
             putString("themeMode", settings.themeMode)
+            putString("selectedRingtone", settings.selectedRingtone)
+            putString("transcriptionLanguage", settings.transcriptionLanguage)
             apply()
         }
     }

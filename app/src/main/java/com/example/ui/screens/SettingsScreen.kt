@@ -325,7 +325,9 @@ fun SettingsScreen(
                 listOf(
                     "Dial buttons" to listOf("Circular Glass", "Squircle Glass", "Borderless Minimal"),
                     "Navigation bar" to listOf("Glass Floating", "Full Width"),
-                    "Contact Cards" to listOf("Large Glass Grid", "Compact Frosted")
+                    "Contact Cards" to listOf("Large Glass Grid", "Compact Frosted"),
+                    "Incoming Ringtone" to listOf("Classic Sonnet", "Chime Celestial", "Liquid Marimba", "Reflection", "Synthesizer"),
+                    "Transcription" to listOf("Hindi", "English (IN)", "German")
                 ).forEach { (caption, options) ->
                     Divider(color = Color.White.copy(alpha = 0.12f))
                     Row(
@@ -336,6 +338,8 @@ fun SettingsScreen(
                                 val currentVal = when (caption) {
                                     "Dial buttons" -> settings.dialPadStyle
                                     "Navigation bar" -> settings.navigationStyle
+                                    "Incoming Ringtone" -> settings.selectedRingtone
+                                    "Transcription" -> settings.transcriptionLanguage
                                     else -> settings.contactCardStyle
                                 }
                                 val idx = options.indexOf(currentVal)
@@ -344,6 +348,8 @@ fun SettingsScreen(
                                 val nextSettings = when (caption) {
                                     "Dial buttons" -> settings.copy(dialPadStyle = nextVal)
                                     "Navigation bar" -> settings.copy(navigationStyle = nextVal)
+                                    "Incoming Ringtone" -> settings.copy(selectedRingtone = nextVal)
+                                    "Transcription" -> settings.copy(transcriptionLanguage = nextVal)
                                     else -> settings.copy(contactCardStyle = nextVal)
                                 }
                                 viewModel.updateSettings(nextSettings)
@@ -362,6 +368,8 @@ fun SettingsScreen(
                             val selectionVal = when (caption) {
                                 "Dial buttons" -> settings.dialPadStyle
                                 "Navigation bar" -> settings.navigationStyle
+                                "Incoming Ringtone" -> settings.selectedRingtone
+                                "Transcription" -> settings.transcriptionLanguage
                                 else -> settings.contactCardStyle
                             }
                             Text(
